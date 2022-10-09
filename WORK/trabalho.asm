@@ -34,10 +34,7 @@ LP:
 
     ;PRINT--------------------------------------
     mov al, Buffer
-    mov ah, 0Eh ; imprime cada caractere incrementando o cursor 
-    mov bh, 0 ; page number (???)
-    mov cx, 1 ; times to print the character
-    int 10h ;calls interruption
+    call printChar
     ;---------------------------------------------
 
 
@@ -66,6 +63,19 @@ here:
 .EXIT ; Generate exit code
 
 ;; procedimentos
+;
+;--------------------------------------------------------------------
+;Funcao: imprime um char na tela
+;Entra:  (A) -> AL -> char a ser impresso
+;--------------------------------------------------------------------
+printChar proc near 
+    mov ah, 0Eh ; imprime cada caractere incrementando o cursor 
+    mov bh, 0 ; page number (???)
+    mov cx, 1 ; times to print the character
+    int 10h ;calls interruption
+    ret
+printChar endp
+
 
 ;
 ;--------------------------------------------------------------------
