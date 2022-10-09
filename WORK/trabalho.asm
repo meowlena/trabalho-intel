@@ -10,13 +10,30 @@
     temp    DB 0
 
 .CONST
-    FileName DB	"texto.txt", 0    
+    FileNameCte DB	"texto.txt", 0  
+    FileName    DB 42 DUP(?)
+    CR          equ 0Dh
+    LF          equ 0Ah
+    MsgCRL      DB CR, LF, 0
 
 .CODE ; Begin code segment
 .STARTUP ; Generate start-up code
+    
+    lea si, FileName
+    call readChar
+
+here:
+    call concatenateTXT
+    call printEnter
+    lea si, FileName
+
+
     mov ah, 3Dh ; Open the file
     mov al, 0 ; Open for reading
+
     lea dx, Filename ; Presume DS points at filename
+    
+
     int 21h ; chama uma função do MS-DOS
     jc BadOpen
     mov FHndl, ax ; Save file handle
@@ -34,7 +51,7 @@ LP:
 
     mov al, Buffer
     call printChar
-
+    
 
     jmp LP ;Read next byte
 EOF: 
@@ -45,9 +62,8 @@ EOF:
 
     call readChar
 
-here:
-
-
+_end:
+    call printEnter
 .EXIT ; Generate exit code
 
 ;; procedimentos
@@ -65,19 +81,26 @@ printChar proc near
 printChar endp
 ;
 ;--------------------------------------------------------------------
-;Funcao: Lê char enquanto não lê enter e imprime na tela
-;Entra:  (A) -> AX -> Valor "Hex" a ser convertido
-;        (S) -> DS:BX -> Ponteiro para o string de destino
+;Funcao: Lê filename do arquivo
+;Entra:  (A) -> Si -> ponteiro pra filename
 ;--------------------------------------------------------------------
 readChar proc near
+read:
     mov ah, 0h      ;; seta modo
     int 16h         ;; pra ler caractere do teclado
-    call printChar  ;; imprime caractere lido
+
     cmp al, 0Dh     ;; compara se caractere é enter
-    jz here         ;; se for, condição de parada 
-    call readChar   ;; se não, continua chamadas recursivas
+    jz readRet         ;; se for, condição de parada 
+    
+    mov [si], al
+    inc si
+    call printChar  ;; imprime caractere lido
+    
+    jmp read   ;; se não, continua chamadas recursivas
+readRet:
     ret
 readChar endp
+
 
 
 BadOpen proc near
@@ -87,7 +110,7 @@ BadOpen endp
 ;
 ;--------------------------------------------------------------------
 ;Fun��o: Converte um valor HEXA para ASCII-DECIMAL
-;Entra:  (A) -> AX -> Valor "Hex" a ser convertido
+;Entra:  (A) -> Si -> ponteiro pra filename
 ;        (S) -> DS:BX -> Ponteiro para o string de destino
 ;--------------------------------------------------------------------
 ReadError proc near
@@ -97,6 +120,45 @@ ReadError endp
 CloseError proc near
     ret    
 CloseError endp
+;
+;--------------------------------------------------------------------
+;Funcaoo: Concatena .txt num filename
+;Entra:  (A) -> Si -> ponteiro pra filename
+;        (S) -> [Si] -> 'filename'.txt
+;--------------------------------------------------------------------
+concatenateTXT proc near 
+    mov [si], '.'
+    inc si
+    mov [si], 't'
+    inc si
+    mov [si], 'x'
+    inc si
+    mov [si], 't'
+    ret
+concatenateTXT endp
+
+;
+;--------------------------------------------------------------------
+;Funcaoo: Printa uma mensagem
+;Entra:  (A) -> Si -> ponteiro pra mensagem
+;--------------------------------------------------------------------
+printMsg proc near
+loopPM:
+    mov al, [si]
+    call printChar
+    inc si
+    cmp [si], 0
+    jz retPM
+    jmp loopPM
+retPM:
+    ret
+printMsg endp
+
+printEnter proc near
+    lea si, MsgCRL
+    call printMsg
+    ret
+printEnter endp
 
 ;--------------------------------------------------------------------
 	end
