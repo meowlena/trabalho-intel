@@ -11,27 +11,45 @@
 
 .CONST
     FileNameCte DB	"texto.txt", 0  
-    FileName    DB 42 DUP(?)
+    FileNameEntrada    DB 42 DUP(?)
+    
     CR          equ 0Dh
     LF          equ 0Ah
     MsgCRL      DB CR, LF, 0
 
+    ;; interações com o usuário
+    inputEntrada DB "Digite o nome do arquivo de entrada: ", CR, LF, 0
+    inputSaida  DB "Digite o nome do arquivo de saida: ", CR, LF, 0
+    inputFrase  DB "Digite a frase a ser criptografada: ", CR, LF, 0
+
+    Sucesso     DB "Processamento realizado sem erro", CR, LF, 0
+    
+    ;; msgs de erro
+    ErroLeitura DB "Erros na leitura do arquivo de entrada", CR, LF, 0
+    ArquivoGde  DB "Arquivo de entrada muito grande (excedeu o tamanho maximo)", CR, LF, 0
+    SimbNaoEnc  DB "Nao foi possível encontrar um dos simbolos da frase, no arquivo de entrada fornecido", CR, LF, 0
+    ErroArqSaida DB "Erro na criacao do arquivo de saida", CR, LF, 00
+
 .CODE ; Begin code segment
 .STARTUP ; Generate start-up code
     
-    lea si, FileName
-    call readChar
+    lea si, inputEntrada
+    call printMsg
+    call printEnter
+    
+    lea si, FileNameEntrada
+    call readString
 
 here:
     call concatenateTXT
     call printEnter
-    lea si, FileName
+    lea si, FileNameEntrada
 
 
     mov ah, 3Dh ; Open the file
     mov al, 0 ; Open for reading
 
-    lea dx, Filename ; Presume DS points at filename
+    lea dx, FilenameEntrada ; Presume DS points at filename
     
 
     int 21h ; chama uma função do MS-DOS
@@ -55,15 +73,18 @@ LP:
 
     jmp LP ;Read next byte
 EOF: 
+    call printEnter
     mov bx, FHndl
     mov ah, 3Eh  ;Close file
     int 21h ; chama uma função do MS-DOS
     jc CloseError
 
-    call readChar
+    call readString
 
 _end:
-    call printEnter
+    lea si, Sucesso
+    call printMsg
+
 .EXIT ; Generate exit code
 
 ;; procedimentos
@@ -84,13 +105,13 @@ printChar endp
 ;Funcao: Lê filename do arquivo
 ;Entra:  (A) -> Si -> ponteiro pra filename
 ;--------------------------------------------------------------------
-readChar proc near
+readString proc near
 read:
     mov ah, 0h      ;; seta modo
     int 16h         ;; pra ler caractere do teclado
 
     cmp al, 0Dh     ;; compara se caractere é enter
-    jz readRet         ;; se for, condição de parada 
+    jz readRet      ;; se for, condição de parada 
     
     mov [si], al
     inc si
@@ -99,7 +120,7 @@ read:
     jmp read   ;; se não, continua chamadas recursivas
 readRet:
     ret
-readChar endp
+readString endp
 
 
 
@@ -134,6 +155,8 @@ concatenateTXT proc near
     mov [si], 'x'
     inc si
     mov [si], 't'
+    inc si
+    mov [si], '0'
     ret
 concatenateTXT endp
 
@@ -147,16 +170,19 @@ loopPM:
     mov al, [si]
     call printChar
     inc si
-    cmp [si], 0
+    cmp [si], LF
     jz retPM
     jmp loopPM
 retPM:
     ret
 printMsg endp
+;--------------------------------------------------------------------
 
 printEnter proc near
-    lea si, MsgCRL
-    call printMsg
+    mov al, CR
+    call printChar
+    mov al, LF
+    call printChar
     ret
 printEnter endp
 
