@@ -18,11 +18,13 @@
     BufferOut  DB 0
     FHndlIn   DW 0
     FHndlOut    DW 0
+    endereco    DW 0
+    indexTemp DW 0
 
 .CONST
     FileNameCte DB	"texto.txt", 0  
-    FileNameEntrada    DB 42 DUP(?)
-    FileNameSaida      DB 42 DUP(?)
+    FileNameEntrada    DB 128 DUP(?)
+    FileNameSaida      DB 128 DUP(?)
     
     CR          equ 0Dh
     LF          equ 0Ah
@@ -94,28 +96,40 @@ EOF:
 
     lea si, FileNameSaida
     call readString
-    call concatenateTXT
+    call concatenateKRP
     call printEnter
 ;--------------------------------------------------------------------
-    mov ah, 'a'
-    mov BufferOut, ah
 
+;---escrita no arquivo----------------------------------------------- 
+    ;; abre o arquivo
     mov ah, 3Ch         ; Create file call
     mov cx, 0           ; Normal file attributes
     lea dx, FileNameSaida ; File to open
     int 21h
     jc BadOpen
-
     mov FHndlOut, ax    ; Save output file handle
-    mov bx, FHndlOut    ; file handle
-    mov cx, 1           ; numeros de bytes a escrever
-    lea dx, BufferOut   
-    mov ah, 40h         ; opcode pra escrever
-    int 21h
-_end:
-    ;;lea si, Sucesso
-    ;;call printMsg
+    
+    lea si, Sucesso   ;;aponta pro que vai ser escrito no arquivo de saída
 
+    loopEscrita:
+        mov bx, FHndlOut    ; file handle
+        mov cx, 1           ; numeros de bytes a escrever
+        mov dx, si 
+        mov ah, 40h         ; opcode pra escrever
+        int 21h
+
+        cmp [si], LF
+        jz _endSucesso
+        inc si
+        jmp loopEscrita
+;--------------------------------------------------------------------
+
+
+_end:
+    
+_endSucesso:
+    lea si, Sucesso
+    call printMsg
 .EXIT                               ; Gera exit code
 
 ;; procedimentos
@@ -192,6 +206,24 @@ concatenateTXT proc near
     mov [si], 't'
     ret
 concatenateTXT endp
+
+;
+;--------------------------------------------------------------------
+;Funcaoo: Concatena .krp num filename
+;Entra:  (A) -> Si -> ponteiro pra filename
+;        (S) -> [Si] -> 'filename'.krp
+;--------------------------------------------------------------------
+concatenateKRP proc near 
+    mov [si], '.'
+    inc si
+    mov [si], 'k'
+    inc si
+    mov [si], 'r'
+    inc si
+    mov [si], 'p'
+    ret
+concatenateKRP endp
+
 
 ;--------------------------------------------------------------------
 ;Funcao: Printa uma mensagem
