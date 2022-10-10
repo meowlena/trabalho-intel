@@ -1,3 +1,12 @@
+;====================================================================
+;                           Milena Silva Braga
+;                                00319002
+;       Livro The Art of Assembly Language usado como referência
+;====================================================================
+
+; nota: eu vou terminar o trabalho e enviar por email ainda de madrugada 
+; mas atualmente eu leio o arquivo, e escrevo num arquivo de saida. :) 
+
 .model small
 
 .STACK
@@ -5,9 +14,10 @@
     hFile    DWORD 0
     pMemory  DWORD 0
     ReadSize DWORD 0
-    Buffer  DB 0
-    FHndl   DW 0
-    temp    DB 0
+    BufferIn  DB 0
+    BufferOut  DB 0
+    FHndlIn   DW 0
+    FHndlOut    DW 0
 
 .CONST
     FileNameCte DB	"texto.txt", 0  
@@ -33,7 +43,8 @@
 
 .CODE ; Begin code segment
 .STARTUP ; Generate start-up code
-    
+
+;---interação com usuário--------------------------------------------- 
     lea si, inputEntrada
     call printMsg
     call printEnter
@@ -42,7 +53,8 @@
     call readString
     call concatenateTXT
     call printEnter
-    
+;--------------------------------------------------------------------
+
     ;lea si, FileNameEntrada
 
     mov ah, 3Dh                     ; Open the file
@@ -50,31 +62,32 @@
     lea dx, FilenameEntrada         ; Presume DS points at filename
     int 21h                         ; chama uma função do MS-DOS
     jc BadOpen
-    mov FHndl, ax                   ; Save file handle
+    mov FHndlIn, ax                 ; Save file handle
 
 LP: 
     mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
-    lea dx, Buffer                  ; Address of data buffer
-    mov cx, 1                       ; Read one byte
-    mov bx, FHndl                   ; Get file handle value
+    lea dx, BufferIn                ; Ponteiro de buffer
+    mov cx, 1                       ; Quantos bytes vão ser lidos
+    mov bx, FHndlIn                 ; Get file handle value
     int 21h                         ; chama uma função do MS-DOS
     jc ReadError 
     
-    cmp ax, cx                      ; EOF reached?
+    cmp ax, cx                      ; EOF encontrado?
     jne EOF
 
-    mov al, Buffer
+    mov al, BufferIn
     call printChar
     
 
-    jmp LP ; Read next byte
+    jmp LP                          ; Lê próximo byte
 EOF: 
     call printEnter
-    mov bx, FHndl
-    mov ah, 3Eh                     ; Close file
+    mov bx, FHndlIn
+    mov ah, 3Eh                     ; fecha arquivo
     int 21h                         ; chama uma função do MS-DOS
     jc CloseError
 
+;---interação com usuário--------------------------------------------- 
     lea si, inputSaida
     call printMsg
     call printEnter
@@ -83,15 +96,27 @@ EOF:
     call readString
     call concatenateTXT
     call printEnter
+;--------------------------------------------------------------------
+    mov ah, 'a'
+    mov BufferOut, ah
 
-    lea si, FileNameSaida
-    call printMsg
+    mov ah, 3Ch         ; Create file call
+    mov cx, 0           ; Normal file attributes
+    lea dx, FileNameSaida ; File to open
+    int 21h
+    jc BadOpen
 
+    mov FHndlOut, ax    ; Save output file handle
+    mov bx, FHndlOut    ; file handle
+    mov cx, 1           ; numeros de bytes a escrever
+    lea dx, BufferOut   
+    mov ah, 40h         ; opcode pra escrever
+    int 21h
 _end:
     ;;lea si, Sucesso
     ;;call printMsg
 
-.EXIT                               ; Generate exit code
+.EXIT                               ; Gera exit code
 
 ;; procedimentos
 ;
