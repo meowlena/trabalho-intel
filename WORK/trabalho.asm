@@ -12,6 +12,7 @@
 .CONST
     FileNameCte DB	"texto.txt", 0  
     FileNameEntrada    DB 42 DUP(?)
+    FileNameSaida      DB 42 DUP(?)
     
     CR          equ 0Dh
     LF          equ 0Ah
@@ -36,56 +37,61 @@
     lea si, inputEntrada
     call printMsg
     call printEnter
-    
+
     lea si, FileNameEntrada
     call readString
-
-here:
     call concatenateTXT
     call printEnter
-    lea si, FileNameEntrada
-
-
-    mov ah, 3Dh ; Open the file
-    mov al, 0 ; Open for reading
-
-    lea dx, FilenameEntrada ; Presume DS points at filename
     
+    ;lea si, FileNameEntrada
 
-    int 21h ; chama uma função do MS-DOS
+    mov ah, 3Dh                     ; Open the file
+    mov al, 0                       ; Open for reading
+    lea dx, FilenameEntrada         ; Presume DS points at filename
+    int 21h                         ; chama uma função do MS-DOS
     jc BadOpen
-    mov FHndl, ax ; Save file handle
+    mov FHndl, ax                   ; Save file handle
 
 LP: 
-    mov ah, 3Fh ;; 3fh é o opcode de readFile no MS-DOS
-    lea dx, Buffer ; Address of data buffer
-    mov cx, 1 ;Read one byte
-    mov bx, FHndl ;Get file handle value
-    int 21h ; chama uma função do MS-DOS
+    mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
+    lea dx, Buffer                  ; Address of data buffer
+    mov cx, 1                       ; Read one byte
+    mov bx, FHndl                   ; Get file handle value
+    int 21h                         ; chama uma função do MS-DOS
     jc ReadError 
     
-    cmp ax, cx ;EOF reached?
+    cmp ax, cx                      ; EOF reached?
     jne EOF
 
     mov al, Buffer
     call printChar
     
 
-    jmp LP ;Read next byte
+    jmp LP ; Read next byte
 EOF: 
     call printEnter
     mov bx, FHndl
-    mov ah, 3Eh  ;Close file
-    int 21h ; chama uma função do MS-DOS
+    mov ah, 3Eh                     ; Close file
+    int 21h                         ; chama uma função do MS-DOS
     jc CloseError
 
-    call readString
+    lea si, inputSaida
+    call printMsg
+    call printEnter
 
-_end:
-    lea si, Sucesso
+    lea si, FileNameSaida
+    call readString
+    call concatenateTXT
+    call printEnter
+
+    lea si, FileNameSaida
     call printMsg
 
-.EXIT ; Generate exit code
+_end:
+    ;;lea si, Sucesso
+    ;;call printMsg
+
+.EXIT                               ; Generate exit code
 
 ;; procedimentos
 ;
@@ -121,24 +127,28 @@ read:
 readRet:
     ret
 readString endp
-
-
-
+;
+;--------------------------------------------------------------------
+;Funcao: imprime erro de leitura 
+;--------------------------------------------------------------------
 BadOpen proc near
+    lea si, ErroLeitura
+    call printMsg
+    jmp _end
     ret
 BadOpen endp
 
-;
-;--------------------------------------------------------------------
-;Fun��o: Converte um valor HEXA para ASCII-DECIMAL
-;Entra:  (A) -> Si -> ponteiro pra filename
-;        (S) -> DS:BX -> Ponteiro para o string de destino
-;--------------------------------------------------------------------
 ReadError proc near
+    lea si, ErroLeitura
+    call printMsg
+    jmp _end
     ret    
 ReadError endp
 
 CloseError proc near
+    lea si, ErroLeitura
+    call printMsg
+    jmp _end
     ret    
 CloseError endp
 ;
@@ -155,14 +165,11 @@ concatenateTXT proc near
     mov [si], 'x'
     inc si
     mov [si], 't'
-    inc si
-    mov [si], '0'
     ret
 concatenateTXT endp
 
-;
 ;--------------------------------------------------------------------
-;Funcaoo: Printa uma mensagem
+;Funcao: Printa uma mensagem
 ;Entra:  (A) -> Si -> ponteiro pra mensagem
 ;--------------------------------------------------------------------
 printMsg proc near
@@ -177,7 +184,8 @@ retPM:
     ret
 printMsg endp
 ;--------------------------------------------------------------------
-
+;Funcao: Printa uma quebra de linha
+;--------------------------------------------------------------------
 printEnter proc near
     mov al, CR
     call printChar
