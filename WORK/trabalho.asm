@@ -11,20 +11,21 @@
 
 .STACK
 .DATA
-    hFile    DWORD 0
-    pMemory  DWORD 0
-    ReadSize DWORD 0
-    BufferIn  DB 0
-    BufferOut  DB 0
-    FHndlIn   DW 0
+    hFile       DWORD 0
+    pMemory     DWORD 0
+    ReadSize    DWORD 0
+    BufferIn    DB 0
+    BufferOut   DB 0
+    FHndlIn     DW 0
     FHndlOut    DW 0
     endereco    DW 0
-    indexTemp DW 0
+    indexTemp   DW 0
 
 .CONST
-    FileNameCte DB	"texto.txt", 0  
+    FileNameCte        DB	"texto.txt", 0  
     FileNameEntrada    DB 128 DUP(?)
     FileNameSaida      DB 128 DUP(?)
+    Frase              DB 128 DUP(?)
     
     CR          equ 0Dh
     LF          equ 0Ah
@@ -46,7 +47,7 @@
 .CODE ; Begin code segment
 .STARTUP ; Generate start-up code
 
-;---interação com usuário--------------------------------------------- 
+;---interação com usuário (arq entrada)------------------------------ 
     lea si, inputEntrada
     call printMsg
     call printEnter
@@ -57,8 +58,7 @@
     call printEnter
 ;--------------------------------------------------------------------
 
-    ;lea si, FileNameEntrada
-
+;----leitura arquivo entrada-----------------------------------------
     mov ah, 3Dh                     ; Open the file
     mov al, 0                       ; Open for reading
     lea dx, FilenameEntrada         ; Presume DS points at filename
@@ -88,8 +88,19 @@ EOF:
     mov ah, 3Eh                     ; fecha arquivo
     int 21h                         ; chama uma função do MS-DOS
     jc CloseError
+;--------------------------------------------------------------------
 
-;---interação com usuário--------------------------------------------- 
+;---interação com usuário (arq. saída)------------------------------- 
+    lea si, inputFrase
+    call printMsg
+    call printEnter
+
+    lea si, Frase
+    call readString
+    call printEnter
+;--------------------------------------------------------------------
+
+;---interação com usuário (arq. saída)------------------------------- 
     lea si, inputSaida
     call printMsg
     call printEnter
@@ -97,6 +108,8 @@ EOF:
     lea si, FileNameSaida
     call readString
     call concatenateKRP
+
+
     call printEnter
 ;--------------------------------------------------------------------
 
@@ -123,7 +136,6 @@ EOF:
         inc si
         jmp loopEscrita
 ;--------------------------------------------------------------------
-
 
 _end:
     
