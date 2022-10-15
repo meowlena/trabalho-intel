@@ -18,9 +18,12 @@
     FileNameSaida      DB 128 DUP(?)    ; nome do arquivo de entrada
     Frase              DB 1024 DUP(?)   ; frase lida pra ser encriptada
     ChaveLida          DB 256 DUP(?)    ; chave lida do arquivo de entrada
-    
+    bufferCripto    DB 0             ; buffer pra criptografia
+    numCripto DB 0
     temp DW 0
-
+    indexArquivo DB 0
+    strResult DB 16 DUP(?) ; string pra conversão de numero pra ascii
+    tempSIFrase DB 0 ; variavel pra salvar SI que tá percorrendo frase pq vai ser usado por outro proc
 
 .CONST
     CR          equ 0Dh         ; Código ASCII de CR
@@ -46,7 +49,7 @@
     ErroLeitura DB "Erros na leitura do arquivo de entrada", CR, LF, 0
     ErroFechamento DB "Erro no fechamento do arquivo", CR, LF, 0
     ArquivoGde  DB "Arquivo de entrada muito grande (excedeu o tamanho maximo)", CR, LF, 0
-    SimbNaoEnc  DB "Nao foi possível encontrar um dos simbolos da frase, no arquivo de entrada fornecido", CR, LF, 0
+    SimbNaoEnc  DB "Nao foi possivel encontrar um dos simbolos da frase, no arquivo de entrada fornecido", CR, LF, 0
     SimbInvalido  DB "Um dos simbolos inseridos na frase e invalido", CR, LF, 0
     ErroArqSaida DB "Erro na criacao do arquivo de saida", CR, LF, 00
     FraseMuitoGrande DB "Frase maior que o tamanho permitido", CR, LF, 00
@@ -102,29 +105,65 @@
     call printEnter
 ;--------------------------------------------------------------------
 
-;---escrita no arquivo----------------------------------------------- 
-    ;; abre o arquivo
+
+ ;; abre o arquivo
     mov ah, 3Ch         ; Create file call
     mov cx, 0           ; Normal file attributes
     lea dx, FileNameSaida ; File to open
     int 21h             ; chama uma função do ms-dos
     jc BadOpen
     mov FileHandler, ax    ; Save output file handle
-    
-    lea si, SimbInvalido   ; aponta pro que vai ser escrito no arquivo de saída
 
-    loopEscrita:
+;criptografia--------------------------------------------------------
+    lea bp, ChaveLida   ; chave lida 
+    mov di, 0           ; indica a posição no arquivo
+    mov indexArquivo, 0
+    lea si, Frase       ; frase lida 
+    
+    loopCriptografia:
+        cmp byte ptr [si], 0    ; verifica se é o fim da frase
+        je fimCripto            ; se for, pula pro fim do loop
+
+    loopArquivo:
+        mov al, byte ptr [bp+di+0]  ; coloca bp+di em al para poder comparar
+        cmp al, byte ptr [si]       ; compara com a frase
+        je criptografa              ; se igual, pula pra criptografia
+        
+        ;checar se chegou no fim do arquivo
+        ;se chegou, erro
+        cmp byte ptr [bp+di+0], 0
+        je CharNaoEnc
+        
+        inc di
+        inc indexArquivo
+        
+        jmp loopArquivo
+
+    criptografa: 
+        mov ah, 0
+        mov al, indexArquivo
+        
+        call converteNumPraASCII
+
         mov bx, FileHandler     ; file handle
         mov cx, 1               ; numeros de bytes a escrever
-        mov dx, si 
+        lea dx, strResult
         mov ah, 40h             ; opcode pra escrever
         int 21h                 ; chama uma função do MS-DOS
 
-        cmp [si], LF            ; verifica se o char lido é enter
-        jz _endSucesso          ; se for, pula pro final, 
-        call testaChar
-        inc si                  ; se não, continua lendo
-        jmp loopEscrita
+        mov [bp+di+0], '×'
+        mov indexArquivo, 0
+        mov di, 0
+        inc si
+        jmp loopCriptografia
+
+    fimCripto:
+
+;--------------------------------------------------------------------
+
+;---escrita no arquivo----------------------------------------------- 
+   
+    
 
     ;; fecha o arquivo
     call printEnter
@@ -143,7 +182,31 @@ _endSucesso:
 .EXIT                               ; Gera exit code
 
 ;; procedimentos
-;
+;--------------------------------------------------------------------
+;Funcao: converte numero pra ASCII
+;Entra:  (A) -> ax -> numero a ser convertido
+;--------------------------------------------------------------------
+converteNumPraASCII proc near
+    lea bx, strResult
+    mov cl, 10
+
+    lpCtAscii:
+        div cl ;ax = numero /10, ah = resto
+        add ah, 48
+        mov [bx], ah
+        sub ah, 48
+
+        inc bx
+        cmp al, 0
+        jg lpCtAscii
+
+    ;mov bx, strResult
+    ;add bx, 48
+    ;mov strResult, bx 
+    ret
+
+converteNumPraASCII endp
+
 ;--------------------------------------------------------------------
 ;Funcao: valida tamanho da frase
 ;Entra:  (A) -> [si] -> frase a ser validada
@@ -395,6 +458,8 @@ FraseVazia proc near
     jmp _end
     ret
 FraseVazia endp
+
+
 
 ;
 ;--------------------------------------------------------------------
