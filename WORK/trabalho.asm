@@ -26,6 +26,7 @@
     CR          equ 0Dh         ; Código ASCII de CR
     LF          equ 0Ah         ; Código ASCII de LF
     MsgCRL      DB CR, LF, 0    ; Quebra de Linha
+    MaxFrase    DB 100
 
     ;;;BE CAREFUL
     MaxArquivo  EQU 65535 ; Tamanho máximo do arquivo de entrada
@@ -39,7 +40,7 @@
     inputSaida  DB "Digite o nome do arquivo de saida: ", CR, LF, 0
     inputFrase  DB "Digite a frase a ser criptografada: ", CR, LF, 0
 
-    Sucesso     DB "Processamento realizado sem erro", CR, LF, 0
+    Sucesso     DB "Processamento realizado sem erros", CR, LF, 0
     
     ;; msgs de erro
     ErroLeitura DB "Erros na leitura do arquivo de entrada", CR, LF, 0
@@ -48,6 +49,8 @@
     SimbNaoEnc  DB "Nao foi possível encontrar um dos simbolos da frase, no arquivo de entrada fornecido", CR, LF, 0
     SimbInvalido  DB "Um dos simbolos inseridos na frase e invalido", CR, LF, 0
     ErroArqSaida DB "Erro na criacao do arquivo de saida", CR, LF, 00
+    FraseMuitoGrande DB "Frase maior que o tamanho permitido", CR, LF, 00
+    ErroFraseVazia DB "Frase vazia", CR, LF, 00
 
 .CODE ; Begin code segment
 .STARTUP ; Generate start-up code
@@ -70,11 +73,9 @@
     lea si, ChaveLida
     call converteLower
 
-    lea si, ChaveLida
-    call printMsg
 ;--------------------------------------------------------------------
 
-;---interação com usuário (arq. saída)------------------------------- 
+;---interação com usuário (frase)------------------------------- 
     lea si, inputFrase
     call printMsg
     call printEnter
@@ -82,6 +83,11 @@
     lea si, Frase
     call readString
     call printEnter
+
+    lea si, Frase
+    call validaTamFrase
+    call printEnter
+
 ;--------------------------------------------------------------------
 
 ;---interação com usuário (arq. saída)------------------------------- 
@@ -139,24 +145,45 @@ _endSucesso:
 ;; procedimentos
 ;
 ;--------------------------------------------------------------------
-;Funcao: converte um char entre A e Z em caixa baixa
-;Entra:  (A) -> [si] -> char a ser convertido
+;Funcao: valida tamanho da frase
+;Entra:  (A) -> [si] -> frase a ser validada
+;--------------------------------------------------------------------
+validaTamFrase proc near
+    mov bl, 0
+    lpTamFrase:
+        cmp byte ptr [si], 0
+        je eofTAM
+        inc si
+
+        inc bl
+        cmp bl, 100
+        jg FraseGrande
+        jmp lpTamFrase
+    eofTAM:
+        cmp bl, 0
+        jz FraseVazia
+        ret
+validaTamFrase endp
+
+;--------------------------------------------------------------------
+;Funcao: converte uma string em caixa baixa
+;Entra:  (A) -> [si] -> string a ser convertido
 ;--------------------------------------------------------------------
 converteLower proc near
-loopConversao:
-    cmp byte ptr [si], 'A' ; [si]- 'A', [si]< 'A'
-    jl proxConv
-    cmp byte ptr [si], 'Z' ;[si] - 'Z', [si] < 'Z'
-    jg proxConv
-    jmp soma20H 
-proxConv:
-    inc si
-    cmp byte ptr [si], 0
-    jne loopConversao    
-    ret
-soma20H:
-    add byte ptr [si], 20h
-    jmp proxConv
+    loopConversao:
+        cmp byte ptr [si], 'A' ; [si]- 'A', [si]< 'A'
+        jl proxConv
+        cmp byte ptr [si], 'Z' ;[si] - 'Z', [si] < 'Z'
+        jg proxConv
+        jmp soma20H 
+    proxConv:
+        inc si
+        cmp byte ptr [si], 0
+        jne loopConversao    
+        ret
+    soma20H:
+        add byte ptr [si], 20h
+        jmp proxConv
 converteLower endp
 ;--------------------------------------------------------------------
 ;Funcao: verifica se um char está dentro do range pré-determinado de
@@ -169,9 +196,9 @@ testaChar proc near
     CMP byte ptr [si], ' ' ; menor char admitido
     JL carriageReturn
     ret
-carriageReturn:
-    CMP byte ptr [si], CR ; testa se é carriage return
-    JNE CharInvalido
+    carriageReturn:
+        CMP byte ptr [si], CR ; testa se é carriage return
+        JNE CharInvalido
 testaChar endp
 
 ;--------------------------------------------------------------------
@@ -191,20 +218,20 @@ printChar endp
 ;Entra:  (A) -> Si -> ponteiro pra onde vai ser salvo o conteúdo lido
 ;--------------------------------------------------------------------
 readString proc near
-read:
-    mov ah, 0h      ;; seta modo
-    int 16h         ;; pra ler caractere do teclado
+    read:
+        mov ah, 0h      ;; seta modo
+        int 16h         ;; pra ler caractere do teclado
 
-    cmp al, 0Dh     ;; compara se caractere é enter
-    jz readRet      ;; se for, condição de parada 
-    
-    mov [si], al
-    inc si
-    call printChar  ;; imprime caractere lido
-    
-    jmp read   ;; se não, continua chamadas recursivas
-readRet:
-    ret
+        cmp al, 0Dh     ;; compara se caractere é enter
+        jz readRet      ;; se for, condição de parada 
+        
+        mov [si], al
+        inc si
+        call printChar  ;; imprime caractere lido
+        
+        jmp read   ;; se não, continua chamadas recursivas
+    readRet:
+        ret
 
 readString endp
 ;
@@ -220,31 +247,31 @@ leituraArquivo proc near
     jc BadOpen
     mov FileHandler, ax             ; Save file handle
 
-LP: 
-    mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
-    lea dx, Buffer                  ; Ponteiro de buffer
-    mov cx, 1                       ; Quantos bytes vão ser lidos
-    mov bx, FileHandler             ; Get file handle value
-    int 21h                         ; chama uma função do MS-DOS
-    jc ReadError 
-    
-    cmp ax, cx                      ; EOF encontrado?
-    jne EOF
+    LP: 
+        mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
+        lea dx, Buffer                  ; Ponteiro de buffer
+        mov cx, 1                       ; Quantos bytes vão ser lidos
+        mov bx, FileHandler             ; Get file handle value
+        int 21h                         ; chama uma função do MS-DOS
+        jc ReadError 
+        
+        cmp ax, cx                      ; EOF encontrado?
+        jne EOF
 
-    mov al, Buffer
-    mov [si], al                    ; guarda o char lido na Chave
-    inc si
+        mov al, Buffer
+        mov [si], al                    ; guarda o char lido na Chave
+        inc si
 
-    jmp LP                          ; Lê próximo byte
-EOF: 
-    mov [si], 0                     ; concatena 0 no fim da chave
-    call printEnter
-    mov bx, FileHandler
-    mov ah, 3Eh                     ; fecha arquivo
-    int 21h                         ; chama uma função do MS-DOS
-    jc CloseError
+        jmp LP                          ; Lê próximo byte
+    EOF: 
+        mov [si], 0                     ; concatena 0 no fim da chave
+        call printEnter
+        mov bx, FileHandler
+        mov ah, 3Eh                     ; fecha arquivo
+        int 21h                         ; chama uma função do MS-DOS
+        jc CloseError
 
-    ret 
+        ret 
 leituraArquivo endp
 ;
 ;--------------------------------------------------------------------
@@ -284,17 +311,17 @@ concatenateKRP endp
 ;Entra:  (A) -> Si -> ponteiro pra mensagem
 ;--------------------------------------------------------------------
 printMsg proc near
-loopPM:
-    mov al, [si]
-    call printChar
-    inc si
-    cmp [si], LF
-    jz retPM
-    cmp [si], 0
-    jz retPM
-    jmp loopPM
-retPM:
-    ret
+    loopPM:
+        mov al, [si]
+        call printChar
+        inc si
+        cmp [si], LF
+        jz retPM
+        cmp [si], 0
+        jz retPM
+        jmp loopPM
+    retPM:
+        ret
 printMsg endp
 ;--------------------------------------------------------------------
 ;Funcao: Printa uma quebra de linha
@@ -352,6 +379,23 @@ CharInvalido proc near
     jmp _end
     ret    
 CharInvalido endp
+
+FraseGrande proc near
+    call printEnter
+    lea si, FraseMuitoGrande
+    call printMsg
+    jmp _end
+    ret
+FraseGrande endp
+
+FraseVazia proc near
+    call printEnter
+    lea si, ErroFraseVazia
+    call printMsg
+    jmp _end
+    ret
+FraseVazia endp
+
 ;
 ;--------------------------------------------------------------------
 	end
