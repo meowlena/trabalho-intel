@@ -66,6 +66,12 @@
 ;----leitura arquivo entrada-----------------------------------------
     lea si, ChaveLida
     call leituraArquivo
+
+    lea si, ChaveLida
+    call converteLower
+
+    lea si, ChaveLida
+    call printMsg
 ;--------------------------------------------------------------------
 
 ;---interação com usuário (arq. saída)------------------------------- 
@@ -133,11 +139,25 @@ _endSucesso:
 ;; procedimentos
 ;
 ;--------------------------------------------------------------------
-;Funcao: transforma um char entre A e Z em caixa baixa
-;Entra:  (A) -> [si] -> char a ser testado
+;Funcao: converte um char entre A e Z em caixa baixa
+;Entra:  (A) -> [si] -> char a ser convertido
 ;--------------------------------------------------------------------
-
-
+converteLower proc near
+loopConversao:
+    cmp byte ptr [si], 'A' ; [si]- 'A', [si]< 'A'
+    jl proxConv
+    cmp byte ptr [si], 'Z' ;[si] - 'Z', [si] < 'Z'
+    jg proxConv
+    jmp soma20H 
+proxConv:
+    inc si
+    cmp byte ptr [si], 0
+    jne loopConversao    
+    ret
+soma20H:
+    add byte ptr [si], 20h
+    jmp proxConv
+converteLower endp
 ;--------------------------------------------------------------------
 ;Funcao: verifica se um char está dentro do range pré-determinado de
 ;   chars que podem ser encriptados    
@@ -190,6 +210,7 @@ readString endp
 ;
 ;--------------------------------------------------------------------
 ;Funcao: Lê arquivo de entrada 
+;Entra:  (A) -> Si -> ponteiro pra onde vai ser salva a chave
 ;--------------------------------------------------------------------
 leituraArquivo proc near
     mov ah, 3Dh                     ; Open the file
@@ -197,13 +218,13 @@ leituraArquivo proc near
     lea dx, FilenameEntrada         ; Presume DS points at filename
     int 21h                         ; chama uma função do MS-DOS
     jc BadOpen
-    mov FileHandler, ax                 ; Save file handle
+    mov FileHandler, ax             ; Save file handle
 
 LP: 
     mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
     lea dx, Buffer                  ; Ponteiro de buffer
     mov cx, 1                       ; Quantos bytes vão ser lidos
-    mov bx, FileHandler                 ; Get file handle value
+    mov bx, FileHandler             ; Get file handle value
     int 21h                         ; chama uma função do MS-DOS
     jc ReadError 
     
@@ -211,12 +232,12 @@ LP:
     jne EOF
 
     mov al, Buffer
-    mov [si], al
+    mov [si], al                    ; guarda o char lido na Chave
     inc si
 
     jmp LP                          ; Lê próximo byte
 EOF: 
-    mov [si], 0
+    mov [si], 0                     ; concatena 0 no fim da chave
     call printEnter
     mov bx, FileHandler
     mov ah, 3Eh                     ; fecha arquivo
