@@ -17,13 +17,15 @@
     FileNameEntrada    DB 128 DUP(?)    ; nome do arquivo de entrada
     FileNameSaida      DB 128 DUP(?)    ; nome do arquivo de entrada
     Frase              DB 1024 DUP(?)   ; frase lida pra ser encriptada
+    zero               DB 0
     ChaveLida          DB 256 DUP(?)    ; chave lida do arquivo de entrada
     bufferCripto    DB 0             ; buffer pra criptografia
     numCripto DB 0
     temp DW 0
+    temp2 DB 0
     indexArquivo DB 0
     strResult DB 16 DUP(?) ; string pra conversão de numero pra ascii
-    tempSIFrase DB 0 ; variavel pra salvar SI que tá percorrendo frase pq vai ser usado por outro proc
+    tempIndex DW 0 ; variavel pra salvar index que tá percorrendo frase pq vai ser usado por outro proc
 
 .CONST
     CR          equ 0Dh         ; Código ASCII de CR
@@ -143,19 +145,14 @@
         mov ah, 0
         mov al, indexArquivo
         
-        call converteNumPraASCII
-
-        mov bx, FileHandler     ; file handle
-        mov cx, 1               ; numeros de bytes a escrever
-        lea dx, strResult
-        mov ah, 40h             ; opcode pra escrever
-        int 21h                 ; chama uma função do MS-DOS
+        call converteNumPraASCII    
 
         mov [bp+di+0], '×'
         mov indexArquivo, 0
         mov di, 0
         inc si
-        jmp loopCriptografia
+        cmp [si], 0
+        jnz loopCriptografia
 
     fimCripto:
 
@@ -184,25 +181,44 @@ _endSucesso:
 ;; procedimentos
 ;--------------------------------------------------------------------
 ;Funcao: converte numero pra ASCII
-;Entra:  (A) -> ax -> numero a ser convertido
+;Entra:  (A) -> al -> numero a ser convertido
 ;--------------------------------------------------------------------
 converteNumPraASCII proc near
+    mov dx, 0
+    mov bufferCripto, dl
+    mov strResult, dl
+
     lea bx, strResult
     mov cl, 10
+   
 
     lpCtAscii:
+        mov cl, 10
         div cl ;ax = numero /10, ah = resto
+        mov temp, ax
+        mov tempIndex, bx
+
+        add al, 48
+        mov bufferCripto, al
+
+        mov bx, FileHandler     ; file handle
+        mov cx, 1               ; numeros de bytes a escrever
+        lea dx, bufferCripto
+        mov ah, 40h             ; opcode pra escrever
+        int 21h                 ; chama uma função do MS-DOS
+
+        mov ax, temp
         add ah, 48
-        mov [bx], ah
-        sub ah, 48
+        mov bufferCripto, ah
 
-        inc bx
-        cmp al, 0
-        jg lpCtAscii
+        mov bx, FileHandler     ; file handle
+        mov cx, 1               ; numeros de bytes a escrever
+        lea dx, bufferCripto
+        mov ah, 40h             ; opcode pra escrever
+        int 21h                 ; chama uma função do MS-DOS
 
-    ;mov bx, strResult
-    ;add bx, 48
-    ;mov strResult, bx 
+        mov ax, temp
+        mov bx, tempIndex
     ret
 
 converteNumPraASCII endp
