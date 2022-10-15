@@ -8,26 +8,24 @@
 
 .STACK
 .DATA
-    hFile       DWORD 0
-    pMemory     DWORD 0
-    ReadSize    DWORD 0
-    Buffer      DB 0
-    FileHandler DW 0
+    Buffer      DB 0 ; buffer dos char 
+    FileHandler DW 0 ; file handler dos arquivos
     endereco    DW 0
     indexTemp   DW 0
     charMsg     DB 0
     charKey     DB 0
-    FileNameEntrada    DB 128 DUP(?)
-    FileNameSaida      DB 128 DUP(?)
-    Frase              DB 1024 DUP(?)
+    FileNameEntrada    DB 128 DUP(?)    ; nome do arquivo de entrada
+    FileNameSaida      DB 128 DUP(?)    ; nome do arquivo de entrada
+    Frase              DB 1024 DUP(?)   ; frase lida pra ser encriptada
+    ChaveLida          DB 256 DUP(?)    ; chave lida do arquivo de entrada
     
     temp DW 0
 
 
 .CONST
-    CR          equ 0Dh
-    LF          equ 0Ah
-    MsgCRL      DB CR, LF, 0 ; Quebra de Linha
+    CR          equ 0Dh         ; Código ASCII de CR
+    LF          equ 0Ah         ; Código ASCII de LF
+    MsgCRL      DB CR, LF, 0    ; Quebra de Linha
 
     ;;;BE CAREFUL
     MaxArquivo  EQU 65535 ; Tamanho máximo do arquivo de entrada
@@ -66,34 +64,8 @@
 ;--------------------------------------------------------------------
 
 ;----leitura arquivo entrada-----------------------------------------
-    mov ah, 3Dh                     ; Open the file
-    mov al, 0                       ; Open for reading
-    lea dx, FilenameEntrada         ; Presume DS points at filename
-    int 21h                         ; chama uma função do MS-DOS
-    jc BadOpen
-    mov FileHandler, ax                 ; Save file handle
-
-LP: 
-    mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
-    lea dx, Buffer                  ; Ponteiro de buffer
-    mov cx, 1                       ; Quantos bytes vão ser lidos
-    mov bx, FileHandler                 ; Get file handle value
-    int 21h                         ; chama uma função do MS-DOS
-    jc ReadError 
-    
-    cmp ax, cx                      ; EOF encontrado?
-    jne EOF
-
-    mov al, Buffer
-    call printChar
-
-    jmp LP                          ; Lê próximo byte
-EOF: 
-    call printEnter
-    mov bx, FileHandler
-    mov ah, 3Eh                     ; fecha arquivo
-    int 21h                         ; chama uma função do MS-DOS
-    jc CloseError
+    lea si, ChaveLida
+    call leituraArquivo
 ;--------------------------------------------------------------------
 
 ;---interação com usuário (arq. saída)------------------------------- 
@@ -123,18 +95,18 @@ EOF:
     mov ah, 3Ch         ; Create file call
     mov cx, 0           ; Normal file attributes
     lea dx, FileNameSaida ; File to open
-    int 21h
+    int 21h             ; chama uma função do ms-dos
     jc BadOpen
     mov FileHandler, ax    ; Save output file handle
     
-    lea si, SimbInvalido   ;;aponta pro que vai ser escrito no arquivo de saída
+    lea si, SimbInvalido   ; aponta pro que vai ser escrito no arquivo de saída
 
     loopEscrita:
         mov bx, FileHandler     ; file handle
         mov cx, 1               ; numeros de bytes a escrever
         mov dx, si 
         mov ah, 40h             ; opcode pra escrever
-        int 21h
+        int 21h                 ; chama uma função do MS-DOS
 
         cmp [si], LF            ; verifica se o char lido é enter
         jz _endSucesso          ; se for, pula pro final, 
@@ -152,15 +124,20 @@ EOF:
 
 _end:
 .EXIT                               ; Gera exit code
-
     
 _endSucesso:
-    lea si, Sucesso
+    lea si, Sucesso                 ; indica a mensagem que vai ser impressa 
     call printMsg
 .EXIT                               ; Gera exit code
 
 ;; procedimentos
 ;
+;--------------------------------------------------------------------
+;Funcao: transforma um char entre A e Z em caixa baixa
+;Entra:  (A) -> [si] -> char a ser testado
+;--------------------------------------------------------------------
+
+
 ;--------------------------------------------------------------------
 ;Funcao: verifica se um char está dentro do range pré-determinado de
 ;   chars que podem ser encriptados    
@@ -177,7 +154,6 @@ carriageReturn:
     JNE CharInvalido
 testaChar endp
 
-
 ;--------------------------------------------------------------------
 ;Funcao: imprime um char na tela
 ;Entra:  (A) -> AL -> char a ser impresso
@@ -191,8 +167,8 @@ printChar proc near
 printChar endp
 ;
 ;--------------------------------------------------------------------
-;Funcao: Lê filename do arquivo
-;Entra:  (A) -> Si -> ponteiro pra filename
+;Funcao: Lê caractere do teclado
+;Entra:  (A) -> Si -> ponteiro pra onde vai ser salvo o conteúdo lido
 ;--------------------------------------------------------------------
 readString proc near
 read:
@@ -211,6 +187,44 @@ readRet:
     ret
 
 readString endp
+;
+;--------------------------------------------------------------------
+;Funcao: Lê arquivo de entrada 
+;--------------------------------------------------------------------
+leituraArquivo proc near
+    mov ah, 3Dh                     ; Open the file
+    mov al, 0                       ; Open for reading
+    lea dx, FilenameEntrada         ; Presume DS points at filename
+    int 21h                         ; chama uma função do MS-DOS
+    jc BadOpen
+    mov FileHandler, ax                 ; Save file handle
+
+LP: 
+    mov ah, 3Fh                     ; 3fh é o opcode de readFile no MS-DOS
+    lea dx, Buffer                  ; Ponteiro de buffer
+    mov cx, 1                       ; Quantos bytes vão ser lidos
+    mov bx, FileHandler                 ; Get file handle value
+    int 21h                         ; chama uma função do MS-DOS
+    jc ReadError 
+    
+    cmp ax, cx                      ; EOF encontrado?
+    jne EOF
+
+    mov al, Buffer
+    mov [si], al
+    inc si
+
+    jmp LP                          ; Lê próximo byte
+EOF: 
+    mov [si], 0
+    call printEnter
+    mov bx, FileHandler
+    mov ah, 3Eh                     ; fecha arquivo
+    int 21h                         ; chama uma função do MS-DOS
+    jc CloseError
+
+    ret 
+leituraArquivo endp
 ;
 ;--------------------------------------------------------------------
 ;Funcaoo: Concatena .txt num filename
@@ -254,6 +268,8 @@ loopPM:
     call printChar
     inc si
     cmp [si], LF
+    jz retPM
+    cmp [si], 0
     jz retPM
     jmp loopPM
 retPM:
